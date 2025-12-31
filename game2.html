@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+
+  <!-- 모바일 뷰포트 최적화: 주소창/확대/스크롤 최소화 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+
+  <title>Neon Breakout+ (Mobile Optimized)</title>
+  <style>
+    :root{
+      --bg:#070a12;
+      --pink:#ff2bd6;
+      --blue:#25d6ff;
+      --lime:#b6ff2b;
+      --text:#d7e3ff;
+      --red:#ff3b3b;
+      --yellow:#ffd43b;
+      --cyan:#3bbcff;
+    }
+
+    /* 모바일 스크롤/당김 새로고침 방지 + 풀스크린 */
+    html, body{
+      margin:0;
+      height:100%;
+      overflow:hidden;
+      overscroll-behavior: none;
+      touch-action: none; /* 중요: 브라우저 제스처(스크롤/줌) 차단 */
+      background: radial-gradient(1200px 600px at 60% 10%, #111a35 0%, var(--bg) 55%, #05060c 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
+      color: var(--text);
+      user-select:none;
+      -webkit-user-select:none;
+      -webkit-touch-callout:none;
+    }
+
+    /* iOS Safari에서 주소창 변화에도 화면 꽉 차게 */
+    body{
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    canvas{
+      display:block;
+      width:100vw;
+      height:100vh;
+      height:100dvh;
+    }
+
+    /* 오버레이 공통 */
+    .overlay{
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 30;
+      padding: 18px;
+      box-sizing: border-box;
+    }
+    .panel{
+      pointer-events: auto;
+      padding: 26px 26px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(10,14,28,0.84), rgba(6,8,16,0.76));
+      border: 1px solid rgba(37,214,255,0.28);
+      box-shadow:
+        0 0 0 1px rgba(255,43,214,0.12) inset,
+        0 0 28px rgba(37,214,255,0.18),
+        0 0 46px rgba(255,43,214,0.10);
+      text-align: center;
+      width: min(420px, 100%);
+      backdrop-filter: blur(7px);
+    }
+    .title{
+      font-weight: 900;
+      letter-spacing: 0.10em;
+      font-size: clamp(28px, 6vw, 34px);
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.94);
+      text-shadow:
+        0 0 10px rgba(255,43,214,0.60),
+        0 0 18px rgba(37,214,255,0.35);
+    }
+    .hint{
+      font-size: clamp(14px, 3.7vw, 16px);
+      opacity: 0.88;
+      margin: 0 0 16px;
+      line-height: 1.45;
+    }
+    button{
+      cursor:pointer;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 14px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      font-size: clamp(14px, 4vw, 16px);
+      color: rgba(5,6,12,0.96);
+      background: linear-gradient(90deg, var(--pink), var(--blue), var(--lime));
+      box-shadow:
+        0 0 16px rgba(255,43,214,0.34),
+        0 0 16px rgba(37,214,255,0.22);
+      transition: transform .08s ease;
+      touch-action: manipulation;
+    }
+    button:active{ transform: scale(0.98); }
+
+    /* 상단 중앙 점수판 (모바일 가독성 업) */
+    .hud{
+      position: fixed;
+      top: env(safe-area-inset-top, 0px);
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 20;
+      padding: 0 12px;
+      box-sizing: border-box;
+      width: 100%;
+    }
+    .scoreCard{
+      position: relative;
+      padding: 12px 18px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(10,14,28,0.56), rgba(6,8,16,0.36));
+      border: 1px solid rgba(37,214,255,0.18);
+      box-shadow:
+        0 0 0 1px rgba(255,43,214,0.08) inset,
+        0 0 18px rgba(37,214,255,0.14);
+      backdrop-filter: blur(6px);
+      min-width: min(360px, 100%);
+      text-align: center;
+    }
+    .scoreLabel{
+      font-size: clamp(12px, 3.5vw, 13px);
+      letter-spacing: 0.14em;
+      opacity: 0.78;
+      margin-bottom: 3px;
+    }
+    .scoreValue{
+      font-size: clamp(30px, 7.5vw, 36px);
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-shadow:
+        0 0 10px rgba(37,214,255,0.45),
+        0 0 14px rgba(255,43,214,0.22);
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+    .comboMini{
+      margin-top: 4px;
+      font-size: clamp(13px, 3.8vw, 14px);
+      letter-spacing: 0.10em;
+      opacity: 0.92;
+      text-shadow: 0 0 10px rgba(182,255,43,0.35);
+    }
+    .buffMini{
+      margin-top: 3px;
+      font-size: clamp(12px, 3.4vw, 13px);
+      letter-spacing: 0.09em;
+      opacity: 0.78;
+      text-shadow: 0 0 10px rgba(255,255,255,0.18);
+    }
+
+    /* 모바일에서 하단 안전영역 고려(패들/플레이 영역 간접) */
+    .safeBottomSpacer{
+      position: fixed;
+      left:0; right:0; bottom:0;
+      height: env(safe-area-inset-bottom, 0px);
+      pointer-events:none;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="hud">
+    <div class="scoreCard">
+      <div class="scoreLabel">SCORE</div>
+      <div class="scoreValue" id="scoreValue">0</div>
+      <div class="comboMini" id="comboMini"></div>
+      <div class="buffMini" id="buffMini"></div>
+    </div>
+  </div>
+
+  <div class="safeBottomSpacer"></div>
+
+  <!-- Click to Start -->
+  <div class="overlay" id="startOverlay">
+    <div class="panel">
+      <div class="title">TAP TO START</div>
+      <p class="hint">
+        터치/클릭 후 사운드가 활성화됩니다.<br/>
+        화면 아무 곳이나 터치하고 좌우로 밀면 패들이 따라옵니다.
+      </p>
+      <button id="startBtn">START</button>
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div class="overlay" id="gameOverOverlay">
+    <div class="panel">
+      <div class="title">GAME OVER</div>
+      <p class="hint">탭/클릭해서 재시작</p>
+      <button id="restartBtn">RESTART</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ============================================================
+  // Fullscreen-ish mobile stabilization helpers
+  // ============================================================
+  function stabilizeViewport() {
+    // 일부 모바일 브라우저에서 주소창 변화 시 레이아웃이 흔들리는 것을 완화
+    // (스크롤을 0으로 돌려 당김/주소창 이동 영향을 줄임)
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('orientationchange', () => setTimeout(stabilizeViewport, 80));
+  window.addEventListener('focus', () => setTimeout(stabilizeViewport, 50));
+  window.addEventListener('load', () => setTimeout(stabilizeViewport, 50));
+
+  // ============================================================
+  // Canvas / DPR
+  // ============================================================
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.floor(window.innerWidth);
+    // iOS/Safari 주소창 변화 대응: innerHeight 사용 + dvh CSS 병행
+    H = Math.floor(window.innerHeight);
+
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', () => { resize(); stabilizeViewport(); });
+  resize();
+
+  // ============================================================
+  // UI Elements
+  // ============================================================
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const scoreValueEl = document.getElementById('scoreValue');
+  const comboMiniEl  = document.getElementById('comboMini');
+  const buffMiniEl   = document.getElementById('buffMini');
+
+  function showStart()  { startOverlay.style.display = 'flex'; }
+  function hideStart()  { startOverlay.style.display = 'none'; }
+  function showGameOver(){ gameOverOverlay.style.display = 'flex'; }
+  function hideGameOver(){ gameOverOverlay.style.display = 'none'; }
+
+  // ============================================================
+  // Utils
+  // ============================================================
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand  = (a, b) => a + Math.random() * (b - a);
+
+  const COLORS = [
+    { hex: '#ff2bd6' }, // neon pink
+    { hex: '#25d6ff' }, // neon blue
+    { hex: '#b6ff2b' }  // neon lime
+  ];
+  const ITEM_COLORS = {
+    MULTI: '#ff3b3b', // red
+    WIDE : '#ffd43b', // yellow
+    LASER: '#3bbcff'  // blue/cyan
+  };
+
+  function hexToRGBA(hex, a=1) {
+    const h = hex.replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // ============================================================
+  // Web Audio (Oscillator based SFX)
+  // ============================================================
+  let audio = null;
+
+  function createAudio() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ac = new AudioCtx();
+
+    const master = ac.createGain();
+    master.gain.value = 0.65;
+    master.connect(ac.destination);
+
+    const delay = ac.createDelay(0.25);
+    delay.delayTime.value = 0.08;
+
+    const feedback = ac.createGain();
+    feedback.gain.value = 0.22;
+
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 5200;
+    filter.Q.value = 0.7;
+
+    delay.connect(filter);
+    filter.connect(master);
+    delay.connect(feedback);
+    feedback.connect(delay);
+
+    function playTone({
+      type='sine', freq=440, freq2=null,
+      duration=0.08, gain=0.22,
+      attack=0.002, decay=0.07, release=0.04,
+      detune=0, sweep=null, wet=0.12
+    }) {
+      const t0 = ac.currentTime;
+      const osc = ac.createOscillator();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (freq2 != null) osc.frequency.exponentialRampToValueAtTime(freq2, t0 + Math.min(duration, 0.03));
+      if (sweep && sweep.to) osc.frequency.exponentialRampToValueAtTime(sweep.to, t0 + sweep.time);
+      osc.detune.setValueAtTime(detune, t0);
+
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + attack);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * 0.55), t0 + attack + decay);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay + release);
+
+      const dry = ac.createGain(); dry.gain.value = 1.0;
+      const wetG = ac.createGain(); wetG.gain.value = wet;
+
+      osc.connect(g);
+      g.connect(dry);
+      g.connect(wetG);
+
+      dry.connect(master);
+      wetG.connect(delay);
+
+      osc.start(t0);
+      osc.stop(t0 + attack + decay + release + duration);
+
+      osc.onended = () => {
+        try { osc.disconnect(); g.disconnect(); dry.disconnect(); wetG.disconnect(); } catch {}
+      };
+    }
+
+    const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+    function sfxBrick() {
+      const base = scale[(Math.random() * scale.length) | 0];
+      playTone({ type:'square', freq: base, freq2: base * rand(1.15,1.35), duration:0.02, gain:0.16, attack:0.001, decay:0.035, release:0.03, wet:0.10 });
+    }
+    function sfxPaddle() {
+      const f = rand(85, 120);
+      playTone({ type:'triangle', freq:f, freq2:f*0.85, duration:0.04, gain:0.20, attack:0.002, decay:0.06, release:0.05, wet:0.08 });
+    }
+    function sfxGameOver() {
+      const notes = [440, 392, 329.63, 261.63];
+      for (let i = 0; i < notes.length; i++) {
+        playTone({ type:'sawtooth', freq:notes[i], duration:0.09, gain:0.14, attack:0.002, decay:0.06, release:0.08, wet:0.16, sweep:{to:notes[i]*0.75, time:0.11} });
+      }
+    }
+    function sfxItem() {
+      const f1 = 880, f2 = 1174.66;
+      playTone({ type:'sine', freq:f1, freq2:f2, duration:0.03, gain:0.18, attack:0.001, decay:0.05, release:0.05, wet:0.14 });
+      playTone({ type:'triangle', freq:f2, freq2:f2*1.08, duration:0.02, gain:0.12, attack:0.001, decay:0.03, release:0.04, wet:0.18 });
+    }
+
+    return { ac, sfxBrick, sfxPaddle, sfxGameOver, sfxItem };
+  }
+
+  // ============================================================
+  // State
+  // ============================================================
+  const state = {
+    started: false,
+    running: false,
+    score: 0,
+    combo: 0,
+
+    // 입력 목표 X (마우스/터치 공통)
+    targetX: W / 2,
+
+    shakeT: 0,
+    scorePulse: 0,
+
+    wideUntil: 0,
+    laserUntil: 0,
+    laserNextAt: 0,
+  };
+
+  // ============================================================
+  // Popups
+  // ============================================================
+  const popups = [];
+  function spawnPopup(x, y, text, colorHex) {
+    popups.push({ x, y, text, color: colorHex, life: 44, maxLife: 44, vy: rand(-0.9, -1.6) });
+  }
+
+  // ============================================================
+  // Paddle (모바일 감도: 더 빠르고 부드럽게)
+  // ============================================================
+  const paddle = {
+    baseW: 140,
+    w: 140,
+    h: 16,         // 모바일 가독성/조작성 위해 살짝 두껍게
+    x: W / 2,
+    y: 0,
+    follow: 0.28   // 중요: 더 빠르게 따라오도록(기존 0.18 -> 0.28)
+  };
+
+  // ============================================================
+  // Balls
+  // ============================================================
+  function makeBall(x, y, vx, vy) {
+    return { r: 8, x, y, vx, vy, trail: [], trailMax: 18 };
+  }
+  const balls = [];
+
+  // ============================================================
+  // Particles
+  // ============================================================
+  const particles = [];
+  function spawnBurst(x, y, colorHex) {
+    const count = (rand(20, 36)) | 0;
+    for (let i = 0; i < count; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const spd = rand(1.7, 7.2);
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        r: rand(1.1, 2.9),
+        life: rand(22, 44) | 0,
+        maxLife: 0,
+        color: colorHex,
+        glow: rand(0.55, 1.05)
+      });
+      particles[particles.length - 1].maxLife = particles[particles.length - 1].life;
+    }
+    state.shakeT = 7;
+  }
+
+  // ============================================================
+  // Bricks
+  // ============================================================
+  const bricks = [];
+  const brickCfg = { rows: 6, cols: 11, pad: 10, top: 110, marginX: 20 };
+
+  function buildBricks() {
+    bricks.length = 0;
+
+    // 화면이 좁으면 cols 줄여서 모바일에서 너무 빽빽하지 않게
+    const cols = W < 420 ? 8 : brickCfg.cols;
+    const rows = W < 420 ? 6 : brickCfg.rows;
+
+    const usableW = W - brickCfg.marginX * 2;
+    const brickW = Math.floor((usableW - brickCfg.pad * (cols - 1)) / cols);
+    const brickH = 18;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const palette = COLORS[(r + c) % COLORS.length];
+        const x = brickCfg.marginX + c * (brickW + brickCfg.pad);
+        const y = brickCfg.top + r * (brickH + brickCfg.pad);
+        bricks.push({ x, y, w: brickW, h: brickH, alive: true, color: palette.hex });
+      }
+    }
+  }
+
+  // ============================================================
+  // Items
+  // ============================================================
+  const items = [];
+  const ITEM_DROP_CHANCE = 0.15;
+
+  function pickItemType() {
+    const r = Math.random();
+    if (r < 0.48) return 'MULTI';
+    if (r < 0.82) return 'WIDE';
+    return 'LASER';
+  }
+
+  function maybeSpawnItem(x, y) {
+    if (Math.random() > ITEM_DROP_CHANCE) return;
+    const type = pickItemType();
+    items.push({
+      type, x, y,
+      vy: rand(1.2, 1.8),
+      size: 13,
+      rot: rand(0, Math.PI * 2),
+      rotV: rand(-0.08, 0.08),
+      t: 0,
+      glow: rand(0.7, 1.1)
+    });
+  }
+
+  // ============================================================
+  // Lasers
+  // ============================================================
+  const lasers = [];
+  function spawnLaser() {
+    const baseY = paddle.y - 6;
+    const baseX = paddle.x;
+    const spread = Math.min(28, paddle.w * 0.22);
+    const color = ITEM_COLORS.LASER;
+
+    lasers.push({ x: baseX, y: baseY, vy: -10.5, life: 90, color });
+    lasers.push({ x: baseX - spread, y: baseY, vy: -10.5, life: 90, color });
+    lasers.push({ x: baseX + spread, y: baseY, vy: -10.5, life: 90, color });
+
+    spawnPopup(W*0.5, 150, 'LASER ONLINE', ITEM_COLORS.LASER);
+  }
+
+  // ============================================================
+  // Rendering helpers
+  // ============================================================
+  function drawBackground() {
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.lineWidth = 1;
+
+    ctx.strokeStyle = 'rgba(37,214,255,0.06)';
+    for (let y = 0; y < H; y += 36) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255,43,214,0.045)';
+    for (let x = 0; x < W; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const g = ctx.createRadialGradient(W*0.55, H*0.12, 10, W*0.55, H*0.12, Math.max(W,H)*0.55);
+    g.addColorStop(0, 'rgba(37,214,255,0.08)');
+    g.addColorStop(0.25, 'rgba(255,43,214,0.06)');
+    g.addColorStop(0.55, 'rgba(182,255,43,0.04)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  function drawBricks() {
+    for (const b of bricks) {
+      if (!b.alive) continue;
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 6, 12, 0.55)';
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+
+      ctx.strokeStyle = hexToRGBA(b.color, 0.92);
+      ctx.lineWidth = 2;
+      ctx.shadowColor = hexToRGBA(b.color, 0.65);
+      ctx.shadowBlur = 18;
+      ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+
+      const g = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y + b.h);
+      g.addColorStop(0, hexToRGBA(b.color, 0.14));
+      g.addColorStop(0.5, hexToRGBA(b.color, 0.05));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.restore();
+    }
+  }
+
+  function drawPaddle() {
+    const y = paddle.y;
+    const x = paddle.x - paddle.w / 2;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(6, 8, 16, 0.78)';
+    ctx.fillRect(x, y, paddle.w, paddle.h);
+
+    const grad = ctx.createLinearGradient(x, y, x + paddle.w, y);
+    grad.addColorStop(0, 'rgba(255,43,214,0.95)');
+    grad.addColorStop(0.5, 'rgba(37,214,255,0.95)');
+    grad.addColorStop(1, 'rgba(182,255,43,0.95)');
+
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(37,214,255,0.45)';
+    ctx.shadowBlur = 18;
+    ctx.strokeRect(x + 0.5, y + 0.5, paddle.w - 1, paddle.h - 1);
+
+    const now = performance.now();
+    if (now < state.wideUntil) {
+      ctx.shadowColor = hexToRGBA(ITEM_COLORS.WIDE, 0.6);
+      ctx.shadowBlur = 18;
+      ctx.strokeStyle = hexToRGBA(ITEM_COLORS.WIDE, 0.75);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 3.5, y + 3.5, paddle.w - 7, paddle.h - 7);
+    }
+    if (now < state.laserUntil) {
+      ctx.shadowColor = hexToRGBA(ITEM_COLORS.LASER, 0.7);
+      ctx.shadowBlur = 22;
+      ctx.strokeStyle = hexToRGBA(ITEM_COLORS.LASER, 0.8);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + paddle.h/2);
+      ctx.lineTo(x + paddle.w - 6, y + paddle.h/2);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(x, y, paddle.w, 3);
+    ctx.restore();
+  }
+
+  function drawOneBall(b) {
+    for (let i = 0; i < b.trail.length; i++) {
+      const t = b.trail[i];
+      const k = i / b.trail.length;
+      const a = 0.02 + k * 0.10;
+      const r = b.r * (0.55 + k * 0.55);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(37,214,255,${a})`;
+      ctx.shadowColor = `rgba(255,43,214,${a})`;
+      ctx.shadowBlur = 18;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.closePath();
+
+    const g = ctx.createRadialGradient(b.x - 3, b.y - 4, 2, b.x, b.y, b.r + 10);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.25, 'rgba(37,214,255,0.95)');
+    g.addColorStop(0.65, 'rgba(255,43,214,0.65)');
+    g.addColorStop(1, 'rgba(182,255,43,0.08)');
+
+    ctx.fillStyle = g;
+    ctx.shadowColor = 'rgba(37,214,255,0.55)';
+    ctx.shadowBlur = 22;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBalls() { for (const b of balls) drawOneBall(b); }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const lifeRatio = p.life / p.maxLife;
+      const a = clamp(lifeRatio, 0, 1);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fillStyle = hexToRGBA(p.color, 0.85 * a);
+      ctx.shadowColor = hexToRGBA(p.color, 0.9 * a);
+      ctx.shadowBlur = 16 * p.glow;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawPopups() {
+    for (const p of popups) {
+      const t = p.life / p.maxLife;
+      const a = clamp(t, 0, 1);
+      const scale = 0.95 + (1 - t) * 0.12;
+
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+
+      ctx.font = '900 20px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.shadowColor = hexToRGBA(p.color, 0.78);
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillText(p.text, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawItems() {
+    for (const it of items) {
+      const color = ITEM_COLORS[it.type];
+      const pulse = 0.55 + 0.45 * Math.sin(it.t * 0.12);
+      const glowA = 0.45 + 0.35 * pulse;
+
+      ctx.save();
+      ctx.translate(it.x, it.y);
+      ctx.rotate(it.rot);
+
+      const w = it.size * 1.35;
+      const h = it.size * 0.95;
+      const r = Math.min(w, h) * 0.5;
+
+      ctx.shadowColor = hexToRGBA(color, 0.8);
+      ctx.shadowBlur = 20 * it.glow;
+      ctx.strokeStyle = hexToRGBA(color, 0.9);
+      ctx.lineWidth = 2;
+
+      ctx.fillStyle = 'rgba(6,8,16,0.70)';
+      roundRect(-w/2, -h/2, w, h, r);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.globalAlpha = 0.85 * glowA;
+      ctx.strokeStyle = hexToRGBA(color, 0.55);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-w*0.28, 0);
+      ctx.lineTo(w*0.28, 0);
+      ctx.stroke();
+
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = hexToRGBA(color, 0.9);
+      ctx.shadowBlur = 18 * it.glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, 2.2, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawLasers() {
+    for (const l of lasers) {
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = hexToRGBA(l.color, 0.95);
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = hexToRGBA(l.color, 0.85);
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.moveTo(l.x, l.y);
+      ctx.lineTo(l.x, l.y + 18);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ============================================================
+  // Collision Helpers
+  // ============================================================
+  function circleRectCollision(cx, cy, cr, rx, ry, rw, rh) {
+    const nx = clamp(cx, rx, rx + rw);
+    const ny = clamp(cy, ry, ry + rh);
+    const dx = cx - nx;
+    const dy = cy - ny;
+    return (dx * dx + dy * dy) <= (cr * cr);
+  }
+  function pointRect(px, py, rx, ry, rw, rh) {
+    return (px >= rx && px <= rx + rw && py >= ry && py <= ry + rh);
+  }
+
+  // ============================================================
+  // Update
+  // ============================================================
+  function updateParticles() {
+    const gravity = 0.12;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vx *= 0.985;
+      p.vy = p.vy * 0.985 + gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 1;
+      if (Math.random() < 0.06) p.r *= 0.95;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function updatePopups() {
+    for (let i = popups.length - 1; i >= 0; i--) {
+      const p = popups[i];
+      p.y += p.vy;
+      p.life -= 1;
+      if (p.life <= 0) popups.splice(i, 1);
+    }
+  }
+
+  function comboMultiplier() {
+    if (state.combo < 2) return 1;
+    return Math.min(8, state.combo);
+  }
+
+  function bumpScorePulse() { state.scorePulse = 1.0; }
+
+  function updateScoreUI() {
+    scoreValueEl.textContent = String(state.score);
+    comboMiniEl.textContent = state.combo >= 2 ? `${state.combo} COMBO  x${comboMultiplier()}` : '';
+
+    const now = performance.now();
+    const buffs = [];
+    if (now < state.wideUntil) {
+      const s = Math.max(0, (state.wideUntil - now) / 1000).toFixed(1);
+      buffs.push(`🟡 WIDE ${s}s`);
+    }
+    if (now < state.laserUntil) {
+      const s = Math.max(0, (state.laserUntil - now) / 1000).toFixed(1);
+      buffs.push(`🔵 LASER ${s}s`);
+    }
+    buffMiniEl.textContent = buffs.join('   ');
+
+    if (state.scorePulse > 0) state.scorePulse = Math.max(0, state.scorePulse - 0.10);
+    const pulse = state.scorePulse;
+    const s = 1 + pulse * 0.18;
+    scoreValueEl.style.transform = `scale(${s})`;
+  }
+
+  function applyItem(type, nowMs) {
+    if (type === 'WIDE') {
+      state.wideUntil = Math.max(state.wideUntil, nowMs + 5000);
+      paddle.w = paddle.baseW * 1.5;
+      return;
+    }
+    if (type === 'LASER') {
+      state.laserUntil = Math.max(state.laserUntil, nowMs + 8000);
+      state.laserNextAt = Math.min(state.laserNextAt || Infinity, nowMs + 200);
+      return;
+    }
+    if (type === 'MULTI') {
+      const MAX_BALLS = 9;
+      const newBalls = [];
+      for (const b of balls) {
+        const speed = Math.hypot(b.vx, b.vy);
+        const baseAng = Math.atan2(b.vy, b.vx);
+        const angles = [baseAng - 0.35, baseAng, baseAng + 0.35];
+        for (let k = 0; k < angles.length; k++) {
+          const ang = angles[k];
+          const nx = b.x + Math.cos(ang) * (b.r + 2);
+          const ny = b.y + Math.sin(ang) * (b.r + 2);
+          newBalls.push(makeBall(nx, ny, Math.cos(ang) * speed, Math.sin(ang) * speed));
+        }
+        if (newBalls.length >= MAX_BALLS) break;
+      }
+      if (newBalls.length > 0) {
+        balls.length = 0;
+        for (const nb of newBalls.slice(0, MAX_BALLS)) balls.push(nb);
+        spawnPopup(W*0.5, 170, 'MULTI-BALL!', ITEM_COLORS.MULTI);
+      }
+    }
+  }
+
+  function updateItems() {
+    const px = paddle.x - paddle.w/2;
+    const py = paddle.y;
+    const now = performance.now();
+
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.t += 1;
+      it.rot += it.rotV;
+      it.y += it.vy;
+      it.x += Math.sin(it.t * 0.06) * 0.25;
+
+      const hit = circleRectCollision(it.x, it.y, it.size * 0.55, px, py, paddle.w, paddle.h);
+      if (hit && state.running) {
+        applyItem(it.type, now);
+        audio?.sfxItem?.();
+        const label = it.type === 'MULTI' ? '🔴 MULTI!' : it.type === 'WIDE' ? '🟡 WIDE!' : '🔵 LASER!';
+        spawnPopup(paddle.x, paddle.y - 30, label, ITEM_COLORS[it.type]);
+        items.splice(i, 1);
+        continue;
+      }
+      if (it.y - it.size > H + 40) items.splice(i, 1);
+    }
+  }
+
+  function updateLasers() {
+    for (let i = lasers.length - 1; i >= 0; i--) {
+      const l = lasers[i];
+      l.y += l.vy;
+      l.life -= 1;
+      if (l.life <= 0 || l.y < -40) { lasers.splice(i, 1); continue; }
+
+      for (const b of bricks) {
+        if (!b.alive) continue;
+        if (pointRect(l.x, l.y, b.x, b.y, b.w, b.h)) {
+          b.alive = false;
+          state.combo += 1;
+
+          const mult = comboMultiplier();
+          const gained = 10 * mult;
+          state.score += gained;
+          bumpScorePulse();
+
+          spawnBurst(l.x, l.y, ITEM_COLORS.LASER);
+          audio?.sfxBrick?.();
+
+          if (state.combo >= 2) spawnPopup(l.x, l.y - 12, `${state.combo} COMBO!  x${mult}`, '#b6ff2b');
+          else spawnPopup(l.x, l.y - 12, `+${gained}`, ITEM_COLORS.LASER);
+
+          maybeSpawnItem(b.x + b.w/2, b.y + b.h/2);
+
+          lasers.splice(i, 1);
+          updateScoreUI();
+          break;
+        }
+      }
+    }
+  }
+
+  function updateOneBall(b) {
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > b.trailMax) b.trail.shift();
+
+    b.x += b.vx;
+    b.y += b.vy;
+
+    if (b.x - b.r <= 0) { b.x = b.r; b.vx *= -1; }
+    if (b.x + b.r >= W) { b.x = W - b.r; b.vx *= -1; }
+    if (b.y - b.r <= 0) { b.y = b.r; b.vy *= -1; }
+
+    const px = paddle.x - paddle.w / 2;
+    const py = paddle.y;
+
+    if (circleRectCollision(b.x, b.y, b.r, px, py, paddle.w, paddle.h) && b.vy > 0) {
+      const offset = (b.x - paddle.x) / (paddle.w / 2);
+      b.vx = clamp(b.vx + offset * 2.3, -8.8, 8.8);
+      b.vy *= -1;
+      b.y = py - b.r - 0.5;
+
+      state.combo = 0;
+      audio?.sfxPaddle?.();
+      updateScoreUI();
+    }
+
+    for (const br of bricks) {
+      if (!br.alive) continue;
+      if (circleRectCollision(b.x, b.y, b.r, br.x, br.y, br.w, br.h)) {
+        br.alive = false;
+
+        state.combo += 1;
+        const mult = comboMultiplier();
+        const gained = 10 * mult;
+        state.score += gained;
+        bumpScorePulse();
+
+        if (state.combo >= 2) spawnPopup(b.x, b.y - 18, `${state.combo} COMBO!  x${mult}`, '#b6ff2b');
+        else spawnPopup(b.x, b.y - 16, `+${gained}`, br.color);
+
+        spawnBurst(b.x, b.y, br.color);
+        audio?.sfxBrick?.();
+
+        maybeSpawnItem(br.x + br.w/2, br.y + br.h/2);
+
+        const cx = clamp(b.x, br.x, br.x + br.w);
+        const cy = clamp(b.y, br.y, br.y + br.h);
+        const dx = b.x - cx;
+        const dy = b.y - cy;
+        if (Math.abs(dx) > Math.abs(dy)) b.vx *= -1;
+        else b.vy *= -1;
+
+        updateScoreUI();
+        break;
+      }
+    }
+  }
+
+  // ============================================================
+  // Game Control
+  // ============================================================
+  function resetGame() {
+    // 패들 위치: 하단 안전영역 고려
+    const safeBottom = 16; // CSS env를 JS에서 직접 읽기 어렵기 때문에 여유값
+    paddle.baseW = clamp(Math.floor(W * 0.18), 120, 210);
+    paddle.w = paddle.baseW;
+    paddle.h = 16;
+    paddle.y = Math.floor(H - 78 - safeBottom);
+    paddle.x = W / 2;
+
+    state.targetX = paddle.x;
+
+    balls.length = 0;
+    const vx = (Math.random() < 0.5 ? -1 : 1) * rand(4.8, 6.2);
+    const vy = -rand(5.8, 7.0);
+    balls.push(makeBall(W/2, H*0.72, vx, vy));
+
+    particles.length = 0;
+    popups.length = 0;
+    items.length = 0;
+    lasers.length = 0;
+
+    buildBricks();
+
+    state.score = 0;
+    state.combo = 0;
+    state.shakeT = 0;
+    state.scorePulse = 0;
+
+    state.wideUntil = 0;
+    state.laserUntil = 0;
+    state.laserNextAt = 0;
+
+    updateScoreUI();
+    hideGameOver();
+    state.running = true;
+  }
+
+  function setStarted(on) {
+    state.started = on;
+    if (on) hideStart(); else showStart();
+  }
+
+  showStart();
+  hideGameOver();
+  state.running = false;
+
+  async function unlockAudioAndStart(e) {
+    // Start 버튼/오버레이 탭에서 호출됨
+    if (e && e.cancelable) e.preventDefault();
+    if (!audio) audio = createAudio();
+    try { if (audio.ac.state === 'suspended') await audio.ac.resume(); } catch {}
+    setStarted(true);
+    resetGame();
+  }
+
+  // 오디오 트리거: 클릭 + 터치 모두 연결
+  startBtn.addEventListener('click', unlockAudioAndStart, { passive: false });
+  startOverlay.addEventListener('click', unlockAudioAndStart, { passive: false });
+  startOverlay.addEventListener('touchstart', unlockAudioAndStart, { passive: false });
+
+  restartBtn.addEventListener('click', () => resetGame(), { passive: false });
+  gameOverOverlay.addEventListener('click', () => resetGame(), { passive: false });
+  gameOverOverlay.addEventListener('touchstart', (e) => { e.preventDefault(); resetGame(); }, { passive: false });
+
+  // ============================================================
+  // Touch Controls (핵심)
+  //  - 화면 어디든 터치하고 좌우로 밀면 targetX 업데이트
+  //  - 손가락이 패들을 가리지 않도록: 터치 위치 = 패들 목표 X로 사용 (직접 패들 위가 아니라 "어디든")
+  // ============================================================
+  function setTargetFromClientX(clientX) {
+    state.targetX = clamp(clientX, paddle.w/2 + 10, W - paddle.w/2 - 10);
+  }
+
+  // 마우스
+  window.addEventListener('mousemove', (e) => setTargetFromClientX(e.clientX));
+
+  // 터치: 스크롤/새로고침 방지 위해 preventDefault + passive:false
+  function onTouchStart(e) {
+    if (e.cancelable) e.preventDefault();
+    if (!e.touches || e.touches.length === 0) return;
+    setTargetFromClientX(e.touches[0].clientX);
+  }
+  function onTouchMove(e) {
+    if (e.cancelable) e.preventDefault();
+    if (!e.touches || e.touches.length === 0) return;
+    setTargetFromClientX(e.touches[0].clientX);
+  }
+  function onTouchEnd(e) {
+    if (e.cancelable) e.preventDefault();
+  }
+
+  // canvas에 걸어두면 "게임 영역"에서 스크롤/당김이 확실히 막힘
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
+
+  // 일부 브라우저에서 제스처 스크롤이 남는 경우 대비: 문서 레벨도 차단
+  document.addEventListener('touchmove', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+
+  // ============================================================
+  // Extra: 모바일에서 더블탭 줌 방지
+  // ============================================================
+  let lastTap = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      if (e.cancelable) e.preventDefault();
+    }
+    lastTap = now;
+  }, { passive:false });
+
+  // ============================================================
+  // Main Loop
+  // ============================================================
+  function step() {
+    requestAnimationFrame(step);
+
+    // 리사이즈가 발생했을 수 있으니 패들 y가 화면 밖으로 튀지 않게 방어
+    paddle.y = Math.min(paddle.y, H - 30);
+
+    // 패들 추적 (모바일 반응 빠르고 부드럽게)
+    paddle.x += (state.targetX - paddle.x) * paddle.follow;
+
+    const now = performance.now();
+
+    // Wide buff
+    if (now >= state.wideUntil) paddle.w = paddle.baseW;
+    else paddle.w = paddle.baseW * 1.5;
+
+    // Laser buff
+    if (state.started && state.running && now < state.laserUntil) {
+      if (!state.laserNextAt || now >= state.laserNextAt) {
+        spawnLaser();
+        state.laserNextAt = now + 2000;
+      }
+    }
+
+    if (state.started && state.running) {
+      for (const b of balls) updateOneBall(b);
+
+      for (let i = balls.length - 1; i >= 0; i--) {
+        if (balls[i].y - balls[i].r > H) balls.splice(i, 1);
+      }
+
+      if (balls.length === 0) {
+        state.running = false;
+        showGameOver();
+        audio?.sfxGameOver?.();
+      }
+
+      if (bricks.length > 0 && bricks.every(b => !b.alive)) {
+        buildBricks();
+        for (const b of balls) { b.vx *= 1.05; b.vy *= 1.05; }
+        spawnPopup(W * 0.5, 150, 'NEXT WAVE!', '#25d6ff');
+      }
+
+      updateParticles();
+      updatePopups();
+      updateItems();
+      updateLasers();
+
+      if (state.shakeT > 0) state.shakeT -= 1;
+    } else {
+      updateParticles();
+      updatePopups();
+      updateItems();
+      updateLasers();
+      if (state.shakeT > 0) state.shakeT -= 1;
+    }
+
+    updateScoreUI();
+
+    let sx = 0, sy = 0;
+    if (state.shakeT > 0) {
+      const s = state.shakeT * 0.25;
+      sx = rand(-s, s);
+      sy = rand(-s, s);
+    }
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    drawBackground();
+    drawBricks();
+    drawParticles();
+    drawItems();
+    drawLasers();
+    drawPaddle();
+    if (state.started) drawBalls();
+    drawPopups();
+    ctx.restore();
+  }
+
+  // ============================================================
+  // Laser / Items update implementations (dependency order)
+  // ============================================================
+  function updateItems() {
+    const px = paddle.x - paddle.w/2;
+    const py = paddle.y;
+    const now = performance.now();
+
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.t += 1;
+      it.rot += it.rotV;
+      it.y += it.vy;
+      it.x += Math.sin(it.t * 0.06) * 0.25;
+
+      const hit = circleRectCollision(it.x, it.y, it.size * 0.55, px, py, paddle.w, paddle.h);
+      if (hit && state.running) {
+        applyItem(it.type, now);
+        audio?.sfxItem?.();
+        const label = it.type === 'MULTI' ? '🔴 MULTI!' : it.type === 'WIDE' ? '🟡 WIDE!' : '🔵 LASER!';
+        spawnPopup(paddle.x, paddle.y - 34, label, ITEM_COLORS[it.type]);
+        items.splice(i, 1);
+        continue;
+      }
+      if (it.y - it.size > H + 40) items.splice(i, 1);
+    }
+  }
+
+  function updateLasers() {
+    for (let i = lasers.length - 1; i >= 0; i--) {
+      const l = lasers[i];
+      l.y += l.vy;
+      l.life -= 1;
+      if (l.life <= 0 || l.y < -40) { lasers.splice(i, 1); continue; }
+
+      for (const b of bricks) {
+        if (!b.alive) continue;
+        if (pointRect(l.x, l.y, b.x, b.y, b.w, b.h)) {
+          b.alive = false;
+          state.combo += 1;
+
+          const mult = comboMultiplier();
+          const gained = 10 * mult;
+          state.score += gained;
+          bumpScorePulse();
+
+          spawnBurst(l.x, l.y, ITEM_COLORS.LASER);
+          audio?.sfxBrick?.();
+
+          if (state.combo >= 2) spawnPopup(l.x, l.y - 12, `${state.combo} COMBO!  x${mult}`, '#b6ff2b');
+          else spawnPopup(l.x, l.y - 12, `+${gained}`, ITEM_COLORS.LASER);
+
+          maybeSpawnItem(b.x + b.w/2, b.y + b.h/2);
+
+          lasers.splice(i, 1);
+          updateScoreUI();
+          break;
+        }
+      }
+    }
+  }
+
+  // Start loop
+  step();
+})();
+</script>
+</body>
+</html>
